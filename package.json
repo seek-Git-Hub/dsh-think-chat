@@ -1,0 +1,39 @@
+{
+  "name": "dsh-better-chat",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "纯文本与图片对话模式（不联网版 + 联网版两个预设）：支持模型自主多轮思考，可查找和搜索文件，可用 Office 技能查看 .docx/.xlsx/.pptx/.pdf 页面，无文件改动、无产出物；联网版仅在用户明确要求时联网。",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "locale",
+    "README.md",
+    "LICENSE"
+  ],
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-tools": "*",
+    "@deepseek-ai/schemastery": "*",
+    "@deepseek-ai/dsh-agent-preset": "*",
+    "@deepseek-ai/dsh-persona": "*",
+    "@deepseek-ai/dsh-subprocess-local": "*",
+    "@deepseek-ai/dsh-tool-fs-search": "*",
+    "@deepseek-ai/dsh-spill-local": "*",
+    "@deepseek-ai/dsh-tool-web": "*"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": [
+        "./cordis.patch.yml"
+      ]
+    }
+  }
+}

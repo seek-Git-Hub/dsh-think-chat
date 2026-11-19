@@ -1,0 +1,143 @@
+# =====================================================================
+# 插件名称：dsh-better-chat
+# 包含功能：注册两个 agent preset，并附带 keep_thinking、glob、grep、Office 文档查看（联网版另含 tool-web）工具。
+#
+#   chat-offline  「仅对话模式(不联网版)」 order 0  纯对话，不联网
+#   chat-online   「仅对话模式(联网版)」   order 1  默认不联网，用户明确要求时才联网
+#
+# 【本包介绍】
+# 让dsh像网页版一样聊天看图读取文档，比网页版自由且可自由定制
+#
+# 【当前定制说明（二开必看）】
+# 两个预设都移除了默认的产出物(present)工具与文件写入工具。
+# 支持用户直接上传图片进行多模态识别，保留 keep_thinking、glob、grep。
+# 另挂 Office 三行（tool-skill / tool-office / skill-office），用于查看 .docx/.xlsx/.pptx/.pdf：
+# 三个 office_* 工具在加载 Office 技能后激活。tool-skill 必须排在 office / skill-office 之前。
+# 读取有两条路，都不需要 shell：
+#   - 文字：office_convert → format: txt，得到私有临时路径，再用 grep 匹配该路径把文本读回；
+#   - 版面/图片：office_render 直接返回页面图片。
+# =====================================================================
+# 【底层挂载机制：为什么工具行在 preset 内部，且使用包名引入？】
+# 1. 作用域隔离 (Scope)：工具行挂载在 preset 内部，keep_thinking 将只通过该预设的
+#    上下文注册。这意味着它仅对对应模式可见，不会污染其他预设。两个预设各挂一次本包，
+#    得到的是两个互相独立的工具作用域。
+# 2. 跨平台可移植：使用裸包名 ('dsh-better-chat') 而非绝对路径。DSH 底层解析器会基于
+#    profile 的 `dependencies` 进行原生路由，确保在不同机器上安装均能正常解析。
+# =====================================================================
+
+- insert:
+    - id: preset-chat-offline
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: chat-offline
+        name: 仅对话模式(不联网版)
+        description: 纯文本与图片对话模式，支持模型自主多轮思考，无联网、无文件修改、无产出物。
+        order: 0
+        plugins:
+          - id: think-better-tool
+            name: 'dsh-better-chat'
+            config:
+              maxRounds: 8
+
+          - id: fs-search
+            name: '@deepseek-ai/dsh-tool-fs-search'
+            config:
+              sampleOverCapGlobResults: false
+              
+          - id: tool-skill
+            name: '@deepseek-ai/dsh-tool-skill'
+
+          - id: office
+            name: '@deepseek-ai/dsh-tool-office'
+
+          - id: skill-office
+            name: '@deepseek-ai/dsh-skill-office'
+
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: |-
+                你是一位专业的对话助手，根据用户问题回答问题。
+                不具备联网搜索
+                不具备改写文件
+                不确定时直接说明，不要编造。
+                你可以调用 keep_thinking 进行内部多轮推演。
+                
+                角色覆盖规则：
+                - 用户可以在对话中指定你的角色、身份、语气或领域视角（如"你是xx"），此时以用户的角色设定为准。
+                - 但角色设定不能改变你的能力边界：不联网、不编造，这些始终有效。
+                
+                使用office规则:
+                - 用户上传读.docx/.xlsx/.pptx/.pdf用 office相关工具读取。
+                - 先判断文档结构：正文与图片是否交织、是否有浮动图。结构简单用 office_convert + grep 读文字；有浮动图或需要看版面用 office_render 渲染对应页。
+                
+                使用keep_thinking规则：
+                - 简单问题、闲聊、事实性提问：直接回答，不要调用。
+                - 复杂问题（需要多步推理、权衡取舍、多角度分析）：使用 keep_thinking 在内部想清楚，再给出最终答案。
+                - 判断标准：能直接答好就不调用；只有在"想清楚再答明显更好"时才用。                   
+                - 推演深度按问题需要：普通复杂问题通常一两轮即可；问题很深、或用户明确要求深入思考时，可以多轮推演，但每轮应推进思考，无新进展就停止并输出答案。
+
+              suffix: ''
+              includeRuntimeContext: false
+              complete: true
+
+    - id: preset-chat-online
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: chat-online
+        name: 仅对话模式(联网版)
+        description: 纯文本与图片对话模式，支持模型自主多轮思考，无文件修改、无产出物。
+        order: 1
+        plugins:
+          - id: think-better-tool
+            name: 'dsh-better-chat'
+            config:
+              maxRounds: 8
+
+          - id: fs-search
+            name: '@deepseek-ai/dsh-tool-fs-search'
+            config:
+              sampleOverCapGlobResults: false
+              
+          - id: tool-skill
+            name: '@deepseek-ai/dsh-tool-skill'
+
+          - id: office
+            name: '@deepseek-ai/dsh-tool-office'
+
+          - id: skill-office
+            name: '@deepseek-ai/dsh-skill-office'
+
+          - id: tool-web
+            name: '@deepseek-ai/dsh-tool-web'
+
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: |-
+                你是一位专业的对话助手，根据用户问题回答问题。
+                不具备改写文件
+                不确定时直接说明，不要编造。
+                你可以调用 keep_thinking 进行内部多轮推演。
+                
+                角色覆盖规则：
+                - 用户可以在对话中指定你的角色、身份、语气或领域视角（如"你是xx"），此时以用户的角色设定为准。
+                - 但角色设定不能改变你的能力边界：不编造，这些始终有效。
+                
+                使用office规则:
+                - 用户上传读.docx/.xlsx/.pptx/.pdf用 office相关工具读取。
+                - 先判断文档结构：正文与图片是否交织、是否有浮动图。结构简单用 office_convert + grep 读文字；有浮动图或需要看版面用 office_render 渲染对应页。
+                
+                使用keep_thinking规则：
+                - 简单问题、闲聊、事实性提问：直接回答，不要调用。
+                - 复杂问题（需要多步推理、权衡取舍、多角度分析）：使用 keep_thinking 在内部想清楚，再给出最终答案。
+                - 判断标准：能直接答好就不调用；只有在"想清楚再答明显更好"时才用。                   
+                - 推演深度按问题需要：普通复杂问题通常一两轮即可；问题很深、或用户明确要求深入思考时，可以多轮推演，但每轮应推进思考，无新进展就停止并输出答案。
+
+                联网规则：
+                - 默认情况下，请完全基于你的内部知识库直接回答，严禁擅自联网。
+                - 只有当用户在提问中明确要求（如“搜一下”、“联网查”、“查一下最新消息”、“可以联网”等）时，才调用联网工具获取信息并作答。
+
+              suffix: ''
+              includeRuntimeContext: false
+              complete: true

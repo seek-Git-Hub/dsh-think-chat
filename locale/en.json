@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "dsh-better-chat",
+    "description": "One plugin that ships two agent presets: Chat only (offline) never touches the network; Chat only (online) stays offline unless you explicitly ask it to search. Both accept images, let the model drive its own multi-round thinking (keep_thinking), can search files, and can view pages of .docx/.xlsx/.pptx/.pdf through the Office skill; neither modifies files nor produces deliverables."
+  }
+}
