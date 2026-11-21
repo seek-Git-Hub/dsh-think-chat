@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "dsh-better-chat",
+    "title": "dsh-think-chat",
     "description": "One plugin that ships two agent presets: Chat only (offline) and Chat only (online, offline unless you ask it to search). Both accept images, let the model drive its own multi-round thinking (keep_thinking), search files, and read Office documents through a read-only structure manifest (office_outline: pages, pictures per page and type, tables, sections) plus a paragraph-preserving text channel (office_text); office_render from the Office skill shows only the pages that need layout. Neither modifies files nor produces deliverables."
   }
 }

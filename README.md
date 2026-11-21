@@ -1,8 +1,8 @@
-# dsh-better-chat
+# dsh-think-chat
 当前版本0.1.1
 给 [DeepSeek Harness] 的两个「**仅对话模式**」：像 DeepSeek 网页版一样聊天，支持图片多模态识别，但**会自己多轮思考**。
 
-一个 DSH 本地 bundle，向 Web 端注册两个 agent preset，并附带 `keep_thinking`、`glob`、`grep`（联网版另加 `tool-web`）工具、两个只读的 Office 结构/文本工具（`office_outline` / `office_text`），以及一组 **Office 文档查看**工具（`office_render` / `office_convert` / `office_recalculate`，需加载 Office 技能后激活）。插件清单里只显示**一个**插件：`dsh-better-chat`。
+一个 DSH 本地 bundle，向 Web 端注册两个 agent preset，并附带 `keep_thinking`、`glob`、`grep`（联网版另加 `tool-web`）工具、两个只读的 Office 结构/文本工具（`office_outline` / `office_text`），以及一组 **Office 文档查看**工具（`office_render` / `office_convert` / `office_recalculate`，需加载 Office 技能后激活）。插件清单里只显示**一个**插件：`dsh-think-chat`。
 
 | 预设 | id | order | 联网 |
 |---|---|---|---|
@@ -60,7 +60,7 @@ DSH 的 agent 循环规则是：**让轮次继续的唯一燃料是「工具调�
 
 | 行 id | 包 | 配置 | 提供的工具 |
 |---|---|---|---|
-| `think-better-tool` | `dsh-better-chat`（本仓库，按包名引入） | `maxRounds: 8` | `keep_thinking、office_outline、office_text` |
+| `think-better-tool` | `dsh-think-chat`（本仓库，按包名引入） | `maxRounds: 8` | `keep_thinking、office_outline、office_text` |
 | `fs-search` | `@deepseek-ai/dsh-tool-fs-search` | `sampleOverCapGlobResults: false` | `glob、grep` |
 | `tool-skill` | `@deepseek-ai/dsh-tool-skill` | — | `skill`（让模型/用户加载技能） |
 | `office` | `@deepseek-ai/dsh-tool-office` | — | `office_render、office_convert、office_recalculate`（加载 Office 技能后激活） |
@@ -139,14 +139,14 @@ DSH 的 agent 循环规则是：**让轮次继续的唯一燃料是「工具调�
 - id: preset-chat-offline      # 不联网版
   ...
           - id: think-better-tool
-            name: 'dsh-better-chat'
+            name: 'dsh-think-chat'
             config:
               maxRounds: 8      # ← 必须是 ≥1 的整数
 
 - id: preset-chat-online       # 联网版
   ...
           - id: think-better-tool
-            name: 'dsh-better-chat'
+            name: 'dsh-think-chat'
             config:
               maxRounds: 8      # ← 同上
 ```
@@ -154,7 +154,7 @@ DSH 的 agent 循环规则是：**让轮次继续的唯一燃料是「工具调�
 ## 目录结构
 
 ```
-dsh-better-chat/
+dsh-think-chat/
 ├── package.json        # 名字、exports、peerDependencies、dsh.bundle.patch
 ├── cordis.patch.yml    # 两个 preset 声明（本插件的全部内容）
 ├── lib/
