@@ -1,8 +1,8 @@
 # dsh-better-chat
-当前版本0.1.0
+当前版本0.1.1
 给 [DeepSeek Harness] 的两个「**仅对话模式**」：像 DeepSeek 网页版一样聊天，支持图片多模态识别，但**会自己多轮思考**。
 
-一个 DSH 本地 bundle，向 Web 端注册两个 agent preset，并附带 `keep_thinking`、`glob`、`grep`（联网版另加 `tool-web`）工具，以及一组 **Office 文档查看**工具（`office_render` / `office_convert` / `office_recalculate`，需加载 Office 技能后激活）。插件清单里只显示**一个**插件：`dsh-better-chat`。
+一个 DSH 本地 bundle，向 Web 端注册两个 agent preset，并附带 `keep_thinking`、`glob`、`grep`（联网版另加 `tool-web`）工具、两个只读的 Office 结构/文本工具（`office_outline` / `office_text`），以及一组 **Office 文档查看**工具（`office_render` / `office_convert` / `office_recalculate`，需加载 Office 技能后激活）。插件清单里只显示**一个**插件：`dsh-better-chat`。
 
 | 预设 | id | order | 联网 |
 |---|---|---|---|
@@ -16,7 +16,7 @@
 - **两个模式（agent preset）**，在 DSH 的 Agent 预设页出现，名字分别是「仅对话模式(不联网版)」与「仅对话模式(联网版)」
 - **共用一份 `keep_thinking`**：纯文字的控制流工具，两个预设各挂一次，各自独立计数、互不影响
 - **`glob` `grep`**：只查找和搜索文件，不修改任何文件
-- **Office 文档查看**：挂载 DSH 自带的 `tool-office` + `skill-office` + `tool-skill`，加载 Office 技能后可用 `office_render` 把 `.docx` / `.xlsx` / `.pptx` / `.pdf` 的页面渲染成图片给模型看，也可以用 `office_convert` 转成 `txt`/`csv`，再用 `grep` 把文字读回对话；不写工作区文件
+- **Office 文档读取（三步）**：`office_outline` 先给整篇结构清单（页数、每页图片数量与类型、表格、分节，**不生成图片**）→ 无图页用 `office_text` 取"每段一行"的文本（修掉官方 txt 用 CR 分隔导致的整篇 1 行）→ 有图页/看版面才用 `office_render` 只渲染该页。全部只读，不写工作区文件
 - **联网版独有的 `tool-web`**：通过 `persona` 系统提示词的强力约束实现**「按需联网」**
   - **默认状态**：纯对话，绝不擅自联网，基于内部知识库作答
   - **触发条件**：用户在提示词中明确提出“搜一下”、“联网查”、“看最新新闻”等要求
@@ -60,7 +60,7 @@ DSH 的 agent 循环规则是：**让轮次继续的唯一燃料是「工具调�
 
 | 行 id | 包 | 配置 | 提供的工具 |
 |---|---|---|---|
-| `think-better-tool` | `dsh-better-chat`（本仓库，按包名引入） | `maxRounds: 8` | `keep_thinking` |
+| `think-better-tool` | `dsh-better-chat`（本仓库，按包名引入） | `maxRounds: 8` | `keep_thinking、office_outline、office_text` |
 | `fs-search` | `@deepseek-ai/dsh-tool-fs-search` | `sampleOverCapGlobResults: false` | `glob、grep` |
 | `tool-skill` | `@deepseek-ai/dsh-tool-skill` | — | `skill`（让模型/用户加载技能） |
 | `office` | `@deepseek-ai/dsh-tool-office` | — | `office_render、office_convert、office_recalculate`（加载 Office 技能后激活） |
@@ -75,29 +75,37 @@ DSH 的 agent 循环规则是：**让轮次继续的唯一燃料是「工具调�
 |---|---|---|---|
 | `tool-web` | `@deepseek-ai/dsh-tool-web` | — | 联网搜索、网页抓取 |
 
-**合计：不联网版常驻 4 个工具（`keep_thinking`、`glob`、`grep`、`skill`），联网版 5 个；加载 Office 技能后再多出 3 个 `office_*`。** 宿主层其它 bundle 还会注入约 13 个工具。
+**合计：不联网版常驻 6 个工具（`keep_thinking`、`office_outline`、`office_text`、`glob`、`grep`、`skill`），联网版 7 个；加载 Office 技能后再多出 3 个 `office_*`。** 宿主层其它 bundle 还会注入约 13 个工具。
 
 > 因为工具行**就在 preset 里**，`ctx.tools.register()` 走的是 preset 的作用域：只有对应的「仅对话模式」agent 看得见它，其它模式**不需要被摘掉任何东西**。两个预设各挂一次本包，得到两个独立的 `keep_thinking` 实例。
 
-### Office 文档查看怎么用
+### Office 文档读取怎么用
 
-- 工具都由 DSH 自带包提供，本插件只负责在 preset 里挂三行：
-  `@deepseek-ai/dsh-tool-office`（工具）、`@deepseek-ai/dsh-skill-office`（技能）、`@deepseek-ai/dsh-tool-skill`（`skill` 工具）。
-- `office_*` 三个工具**默认不出现在工具列表里**：模型（或用户用 `/office`）先加载 Office 技能，从**下一个请求**起才激活。
-- **两条读取路线，都不需要 shell：**
+工具分两类：
 
-  | 想要什么 | 用什么 | 结果 |
-  |---|---|---|
-  | 文字内容（正文、标题、台词） | `office_convert` → `format: "txt"` | 返回 Harness 私有临时目录里的 `.txt` 路径；再对这个路径用 **`grep` 的 `pattern` 匹配行**即可把文字读进对话 |
-  | 版面/图片/图文关系 | `office_render` → `pages` | 直接返回页面图片给模型看，不产生文件 |
+- **DSH 自带**（`office_render` / `office_convert` / `office_recalculate`）：由 `dsh-tool-office` + `dsh-skill-office` 提供，**默认不在工具列表里**；模型（或用户 `/office`）先加载 Office 技能，从下一个请求起才激活。
+- **本插件自带的只读工具**（`office_outline` / `office_text`）：注册即用，不依赖 Office 技能；只读，不写工作区、不执行 shell、不联网。
 
-  实测流程：`office_convert(某个 .docx → txt)` 得到临时路径，`grep` 以该路径为 `path`、`pattern: ".+"` 即可拿到逐行文本——**全程没有 shell**，`grep` 读的就是那个私有临时文件。
-- **限制**：
-  - 临时文件有保留期，对话结束即删；要在对话里复用，必须当轮读回。
-  - 渲染保真度与分页取决于 LibreOffice Kit，可能与 Microsoft Office / WPS 不同。
-  - Web GUI 的 Office 行只显示文字、不显示渲染出的图片（**模型能看到**）。
-  - 单次渲染受 `maxImages`、像素与字节上限约束。
-  - `office_convert` 不接受 PDF 输入（PDF 只能 `office_render`）。
+**三步读取，顺序不能跳：**
+
+| 步骤 | 工具 | 结果 |
+|---|---|---|
+| 1. 结构 | `office_outline` | 页数、每页图片数量与类型、表格、分节、标题、文字量；**不生成任何图片**，并给出可直接粘贴的 `pages=[…]` 建议 |
+| 2. 文字 | `office_text` | 每段一行、LF 换行的 UTF-8 文本 + 行统计；返回的 `text-lf` 文件可直接交给 `grep` 按行检索，也可用 `offset`/`limit` 分段读 |
+| 3. 版面/图片 | `office_render` → `pages` | 只渲染清单点出的页，直接返回页面图片 |
+
+**为什么需要 `office_text`**：官方转换器导出 txt 时用**纯 CR（0x0D）**分隔段落，文件里一个 `\n` 都没有，所以按行读的工具（含 `grep`）只能看到"整篇 1 行 200 多字"。`office_text` 把 CR/CRLF 规范成 LF，并返回 `lines` / `maxLineLength` / `textChannel`；一旦 `textChannel=suspect`（整篇 1–2 行却上千字，或存在超长单行），就说明文本通道不可用，应停止按行检索，改用 `offset`/`limit` 分段或改走渲染。
+
+**为什么需要 `office_outline`**：从 txt 判断"有没有图片"不可能，逐页渲染又浪费 token。Word 文档先用官方转换引擎分页得到 PDF（**不渲染成图片**），再解析 PDF 页树、按内容流里实际执行的 `Do` 统计每页图片——不能按 `/Resources` 里列出的图片计数：LibreOffice 会让所有页共享同一个资源字典，那样会把一张图算到每一页。
+
+**限制**：
+
+- 分页与图片定位依赖 LibreOffice Kit，与 Microsoft Office / WPS 的分页可能不同；页号与 `office_render` 一致。
+- `office_text` 只支持 Word 家族（`doc` / `docx` / `odt`）；PDF / 表格 / 幻灯片没有文本通道，只能按页或按表渲染。
+- 内容流合计超过 96MB 时清单会标注"页级扫描未完成"，此时每页图片数可能偏少。
+- 临时文件有保留期，对话结束即删。
+- Web GUI 的 Office 行只显示文字、不显示渲染出的图片（**模型能看到**）。
+- 单次渲染受 `maxImages`、像素与字节上限约束；`office_convert` 不接受 PDF 输入（PDF 只能 `office_render`）。
 
 ### 刻意没有挂的
 
@@ -109,7 +117,7 @@ DSH 的 agent 循环规则是：**让轮次继续的唯一燃料是「工具调�
 | `dsh-tool-ralph` | 天生自我循环 |
 | `dsh-tool-subagent` / `dsh-tool-workflow` / agent-team | 请求数成倍放大 |
 | `dsh-tool-todo` | 会把人格拉向"干活" |
-| `dsh-tool-pwsh` / `dsh-tool-bash` / `dsh-tool-jobs` / `dsh-tool-terminal` | 重型，与纯对话定位冲突。Office 读取用 `office_convert` + `grep` 读回临时文件即可，不需要 shell |
+| `dsh-tool-pwsh` / `dsh-tool-bash` / `dsh-tool-jobs` / `dsh-tool-terminal` | 重型，与纯对话定位冲突。Office 读取用 `office_outline` + `office_text` + `office_render` 就够，不需要 shell |
 | `dsh-agent-instructions` | **必须不挂**，否则会去读 `AGENTS.md`，模型一上来就进入编码 agent 人格 |
 | `dsh-plan-mode` | 与纯对话模式无关 |
 
@@ -150,7 +158,9 @@ dsh-better-chat/
 ├── package.json        # 名字、exports、peerDependencies、dsh.bundle.patch
 ├── cordis.patch.yml    # 两个 preset 声明（本插件的全部内容）
 ├── lib/
-│   └── index.js        # keep_thinking 工具实现（两个 preset 共用）
+│   ├── index.js              # keep_thinking 工具实现（两个 preset 共用）
+│   ├── office-read.js        # office_outline / office_text 两个只读工具
+│   └── office-structure.js   # OOXML(ZIP+XML) 与 PDF 页树扫描、文本换行规范化
 ├── locale/
 │   ├── en.json
 │   ├── zh.json
@@ -159,4 +169,4 @@ dsh-better-chat/
 └── LICENSE
 ```
 
-修改 `lib/index.js` 或 `cordis.patch.yml` 后，到 DSH 的插件清单里禁用再启用本插件，或重启 DSH 生效；已经开始的会话保持启动时的插件版本，需要新建会话验证。
+修改 `lib/` 下的文件或 `cordis.patch.yml` 后，到 DSH 的插件清单里禁用再启用本插件，或重启 DSH 生效；已经开始的会话保持启动时的插件版本，需要新建会话验证。

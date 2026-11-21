@@ -13,9 +13,11 @@
 # 支持用户直接上传图片进行多模态识别，保留 keep_thinking、glob、grep。
 # 另挂 Office 三行（tool-skill / tool-office / skill-office），用于查看 .docx/.xlsx/.pptx/.pdf：
 # 三个 office_* 工具在加载 Office 技能后激活。tool-skill 必须排在 office / skill-office 之前。
-# 读取有两条路，都不需要 shell：
-#   - 文字：office_convert → format: txt，得到私有临时路径，再用 grep 匹配该路径把文本读回；
-#   - 版面/图片：office_render 直接返回页面图片。
+# 读取有三步，都不需要 shell：
+#   1. 结构：office_outline → 页数、每页图片数量与类型、表格、分节（不发图片，不需要渲染）；
+#   2. 文字：office_text → 每段一行的 LF 文本 + 行统计（转换器原本用纯 CR 分隔段落，
+#      按行读会变成“整篇 1 行”，这里统一规范化成 LF，并给出 textChannel 判断通道是否异常）；
+#   3. 版面/图片：office_render 只渲染清单点出的页。
 # =====================================================================
 # 【底层挂载机制：为什么工具行在 preset 内部，且使用包名引入？】
 # 1. 作用域隔离 (Scope)：工具行挂载在 preset 内部，keep_thinking 将只通过该预设的
@@ -67,9 +69,17 @@
                 - 用户可以在对话中指定你的角色、身份、语气或领域视角（如"你是xx"），此时以用户的角色设定为准。
                 - 但角色设定不能改变你的能力边界：不联网、不编造，这些始终有效。
                 
-                使用office规则:
-                - 用户上传读.docx/.xlsx/.pptx/.pdf用 office相关工具读取。
-                - 先判断文档结构：正文与图片是否交织、是否有浮动图。结构简单用 office_convert + grep 读文字；有浮动图或需要看版面用 office_render 渲染对应页。
+                使用 office 规则（按顺序执行；不跳步、不混用、不猜）:
+                1) 结构清单先行：读任何 .docx/.xlsx/.pptx/.pdf 前，先调用 office_outline 取整篇结构清单（页数、每页图片数量与类型、表格、分节）。没有清单，不得开始文本检索，也不得开始渲染。
+                2) 按清单选择处理方式，不得混用：
+                   - 纯文本页（清单里该页 0 图）→ 用 office_text 提取文本；默认每次 60 行，按返回的 nextOffset 续读，或用返回的 text-lf 文件配 grep 按行定位。
+                   - 有图页或需看版面 → 只用 office_render 渲染清单点出的页（pages 精确到页号），按需挑页，不得全篇渲染。
+                   - .pdf / .xlsx / .pptx 没有文本通道：只能按页或按表渲染，不得用 txt 代替阅读。
+                3) 禁止的推断：不得用文本内容判断有没有图片；不得用单页渲染推断全篇版面；不得跳过清单直接 grep 或直接渲染全篇。
+                4) 文本通道异常分支（命中任一条立即停止按行检索）：office_text 返回 textChannel=suspect；或行数异常少（整篇只有 1~2 行却有上千字）；或出现超长单行（最长行 > 2000 字）。处置：停掉 grep 与按行检索，改用 office_text 的 offset/limit 分段，或改走 office_render 看版面，并在回答里说明“文本通道异常”及处置方式，不得反复重试。
+                5) 重试上限：同一类检索（同一工具 + 同一参数族）失败 2 次即停，改用另一种读法；再失败就如实说明无法完成，不得继续试。
+                6) office_render / office_convert 需要先加载 office 技能（技能列表里的 office）；office_outline / office_text 可直接用。
+                7) 转换或渲染不可用时，如实告知缺哪一步，不得编造页面内容；引用页码一律以 office_outline 的页数为准。
                 
                 使用keep_thinking规则：
                 - 简单问题、闲聊、事实性提问：直接回答，不要调用。
@@ -124,9 +134,17 @@
                 - 用户可以在对话中指定你的角色、身份、语气或领域视角（如"你是xx"），此时以用户的角色设定为准。
                 - 但角色设定不能改变你的能力边界：不编造，这些始终有效。
                 
-                使用office规则:
-                - 用户上传读.docx/.xlsx/.pptx/.pdf用 office相关工具读取。
-                - 先判断文档结构：正文与图片是否交织、是否有浮动图。结构简单用 office_convert + grep 读文字；有浮动图或需要看版面用 office_render 渲染对应页。
+                使用 office 规则（按顺序执行；不跳步、不混用、不猜）:
+                1) 结构清单先行：读任何 .docx/.xlsx/.pptx/.pdf 前，先调用 office_outline 取整篇结构清单（页数、每页图片数量与类型、表格、分节）。没有清单，不得开始文本检索，也不得开始渲染。
+                2) 按清单选择处理方式，不得混用：
+                   - 纯文本页（清单里该页 0 图）→ 用 office_text 提取文本；默认每次 60 行，按返回的 nextOffset 续读，或用返回的 text-lf 文件配 grep 按行定位。
+                   - 有图页或需看版面 → 只用 office_render 渲染清单点出的页（pages 精确到页号），按需挑页，不得全篇渲染。
+                   - .pdf / .xlsx / .pptx 没有文本通道：只能按页或按表渲染，不得用 txt 代替阅读。
+                3) 禁止的推断：不得用文本内容判断有没有图片；不得用单页渲染推断全篇版面；不得跳过清单直接 grep 或直接渲染全篇。
+                4) 文本通道异常分支（命中任一条立即停止按行检索）：office_text 返回 textChannel=suspect；或行数异常少（整篇只有 1~2 行却有上千字）；或出现超长单行（最长行 > 2000 字）。处置：停掉 grep 与按行检索，改用 office_text 的 offset/limit 分段，或改走 office_render 看版面，并在回答里说明“文本通道异常”及处置方式，不得反复重试。
+                5) 重试上限：同一类检索（同一工具 + 同一参数族）失败 2 次即停，改用另一种读法；再失败就如实说明无法完成，不得继续试。
+                6) office_render / office_convert 需要先加载 office 技能（技能列表里的 office）；office_outline / office_text 可直接用。
+                7) 转换或渲染不可用时，如实告知缺哪一步，不得编造页面内容；引用页码一律以 office_outline 的页数为准。
                 
                 使用keep_thinking规则：
                 - 简单问题、闲聊、事实性提问：直接回答，不要调用。

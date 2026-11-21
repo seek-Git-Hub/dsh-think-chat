@@ -1,9 +1,9 @@
 {
   "name": "dsh-better-chat",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
-  "description": "纯文本与图片对话模式（不联网版 + 联网版两个预设）：支持模型自主多轮思考，可查找和搜索文件，可用 Office 技能查看 .docx/.xlsx/.pptx/.pdf 页面，无文件改动、无产出物；联网版仅在用户明确要求时联网。",
+  "description": "纯文本与图片对话模式（不联网版 + 联网版两个预设）：支持模型自主多轮思考，可查找和搜索文件，可用 Office 技能查看 .docx/.xlsx/.pptx/.pdf 页面，并提供只读的整篇结构清单（office_outline）与按段落换行的文本通道（office_text），无文件改动、无产出物；联网版仅在用户明确要求时联网。",
   "main": "lib/index.js",
   "exports": {
     ".": "./lib/index.js",

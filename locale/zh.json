@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "dsh-better-chat",
-    "description": "一个插件带出两个 Agent 预设：「仅对话模式(不联网版)」纯对话、不联网；「仅对话模式(联网版)」默认不联网、用户明确要求时才联网。两个预设都支持图片多模态、模型自主多轮思考（keep_thinking）、可查找和搜索文件，并可用 Office 技能查看 .docx/.xlsx/.pptx/.pdf 的页面；无文件改动、无产出物。"
+    "description": "一个插件带出两个 Agent 预设：「仅对话模式(不联网版)」「仅对话模式(联网版)」。两个预设都支持图片多模态、模型自主多轮思考（keep_thinking）、查找和搜索文件，并提供只读的 Office 结构清单（office_outline：页数/每页图片数与类型/表格/分节）与按段落换行的文本通道（office_text），需要看版面时用 Office 技能的 office_render 只渲染该页；无文件改动、无产出物。"
   }
 }
